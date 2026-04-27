@@ -33,6 +33,10 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Usuario desconectado');
     });
+
+    socket.on('startDrawing', (data) => {
+    socket.broadcast.emit('startDrawing', data);
+});
 });
 
 const publicPath = path.join(__dirname, '..', 'dist');
