@@ -15,14 +15,14 @@ function App() {
   const [showPicker, setShowPicker] = useState(false);
   const [isHandMode, setIsHandMode] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
-  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
+  const [startPan, setStartPan] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    
-    // Configuración para alta resolución (Retina/Mobile)
     const dpr = window.devicePixelRatio || 1;
-    const width = window.innerWidth * 3; 
+    
+    // Pizarra grande: 3 veces el ancho/alto de la pantalla
+    const width = window.innerWidth * 3;
     const height = window.innerHeight * 3;
 
     canvas.width = width * dpr;
@@ -54,7 +54,9 @@ function App() {
     });
 
     socket.on('clear', () => {
-      contextRef.current.fillRect(0, 0, canvas.width, canvas.height);
+      const ctx = contextRef.current;
+      ctx.fillStyle = "#1e1e1e";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
     });
 
     return () => {
@@ -64,16 +66,11 @@ function App() {
     };
   }, []);
 
-  // FUNCIÓN CLAVE: Calcula la posición real considerando el SCROLL
   const getCoordinates = (e) => {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    
-    // Soporte para touch y mouse
+    const rect = canvasRef.current.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    // Restamos la posición del canvas respecto a la pantalla
     return {
       x: clientX - rect.left,
       y: clientY - rect.top,
@@ -82,12 +79,18 @@ function App() {
     };
   };
 
-  const startDrawing = (e) => {
+  const startAction = (e) => {
+    if (showPicker) setShowPicker(false);
     const { x, y, clientX, clientY } = getCoordinates(e.nativeEvent);
 
     if (isHandMode) {
       setIsPanning(true);
-      setStartPan({ x: clientX, y: clientY, scrollLeft: window.scrollX, scrollTop: window.scrollY });
+      setStartPan({ 
+        x: clientX, 
+        y: clientY, 
+        scrollLeft: window.scrollX, 
+        scrollTop: window.scrollY 
+      });
       return;
     }
 
@@ -96,15 +99,13 @@ function App() {
     contextRef.current.lineWidth = isEraser ? 40 : 4;
     contextRef.current.beginPath();
     contextRef.current.moveTo(x, y);
-
     socket.emit('startDrawing', { x, y });
   };
 
-  const draw = (e) => {
+  const doAction = (e) => {
     const { x, y, clientX, clientY } = getCoordinates(e.nativeEvent);
 
     if (isPanning) {
-      // Movimiento de pantalla inverso para que se sienta natural
       const dx = clientX - startPan.x;
       const dy = clientY - startPan.y;
       window.scrollTo(startPan.scrollLeft - dx, startPan.scrollTop - dy);
@@ -112,50 +113,56 @@ function App() {
     }
 
     if (!isDrawing) return;
-
     contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
-
-    socket.emit('draw', {
-      x, y,
-      color: contextRef.current.strokeStyle,
-      lineWidth: contextRef.current.lineWidth
-    });
+    socket.emit('draw', { x, y, color: contextRef.current.strokeStyle, lineWidth: contextRef.current.lineWidth });
   };
 
-  const stopDrawing = () => {
+  const stopAction = () => {
     setIsDrawing(false);
     setIsPanning(false);
   };
 
+  const handleClear = () => {
+    if (window.confirm("¿Borrar todo para todos?")) {
+      const ctx = contextRef.current;
+      ctx.fillStyle = "#1e1e1e";
+      ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      socket.emit('clear');
+    }
+  };
+
   return (
-    <div className="canvas-container">
+    <div className="app-container">
       <div className="toolbar">
-        <button onClick={() => {setIsHandMode(!isHandMode); setIsEraser(false)}} 
-                style={{background: isHandMode ? '#fcc419' : '#444'}}>
-          {isHandMode ? "🖐️" : "✋"}
-        </button>
-        <button onClick={() => {setIsEraser(!isEraser); setIsHandMode(false)}}
-                style={{background: isEraser ? '#4dabf7' : '#ff6b6b'}}>
-          {isEraser ? "✏️" : "🧽"}
-        </button>
-        <div className="color-preview" onClick={() => setShowPicker(!showPicker)} 
-             style={{backgroundColor: color, width: 30, height: 30, borderRadius: '50%'}} />
-        {showPicker && (
-          <div className="picker-popover">
-             <div className="picker-cover" onClick={() => setShowPicker(false)}/>
-             <SketchPicker color={color} onChange={(c) => setColor(c.hex)} />
-          </div>
-        )}
+        <div className="picker-container">
+          <div 
+            className="color-circle" 
+            style={{ backgroundColor: color }} 
+            onClick={() => { setShowPicker(!showPicker); setIsEraser(false); setIsHandMode(false); }}
+          />
+          {showPicker && (
+            <div className="picker-popover">
+              <div className="picker-cover" onClick={() => setShowPicker(false)} />
+              <SketchPicker color={color} onChange={(c) => setColor(c.hex)} />
+            </div>
+          )}
+        </div>
+
+        <button className={`btn ${isHandMode ? 'active' : ''}`} onClick={() => { setIsHandMode(!isHandMode); setIsEraser(false); }}>🖐️</button>
+        <button className={`btn ${isEraser ? 'active-eraser' : ''}`} onClick={() => { setIsEraser(!isEraser); setIsHandMode(false); }}>🧽</button>
+        <button className="btn btn-clear" onClick={handleClear}>🗑️</button>
       </div>
+
       <canvas
         ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseMove={draw}
-        onMouseUp={stopDrawing}
-        onTouchStart={startDrawing}
-        onTouchMove={draw}
-        onTouchEnd={stopDrawing}
+        onMouseDown={startAction}
+        onMouseMove={doAction}
+        onMouseUp={stopAction}
+        onMouseLeave={stopAction}
+        onTouchStart={startAction}
+        onTouchMove={doAction}
+        onTouchEnd={stopAction}
       />
     </div>
   );
