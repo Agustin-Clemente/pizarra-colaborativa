@@ -3,54 +3,46 @@ import { SketchPicker } from 'react-color';
 import io from 'socket.io-client';
 import './App.css';
 
-// URL de tu servidor en Render
 const socket = io('https://pizarra-colaborativa-2mt5.onrender.com');
 
 function App() {
   const canvasRef = useRef(null);
   const contextRef = useRef(null);
 
-  // Estados de dibujo
   const [isDrawing, setIsDrawing] = useState(false);
   const [color, setColor] = useState("#ffffff");
   const [isEraser, setIsEraser] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
-
-  // Estados de desplazamiento (Mano)
   const [isHandMode, setIsHandMode] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
 
-  const toggleHandMode = () => {
-    setIsHandMode(!isHandMode);
-    if (!isHandMode) setIsEraser(false); // Si activamos mano, quitamos goma
-  };
-
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ratio = 2;
     
-    // Hacemos el lienzo más grande para tener espacio de desplazamiento
-    canvas.width = window.innerWidth * 4;
-    canvas.height = window.innerHeight * 4;
-    canvas.style.width = `${window.innerWidth * 3}px`;
-    canvas.style.height = `${window.innerHeight * 3}px`;
+    // Configuración para alta resolución (Retina/Mobile)
+    const dpr = window.devicePixelRatio || 1;
+    const width = window.innerWidth * 3; 
+    const height = window.innerHeight * 3;
+
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     const context = canvas.getContext("2d");
-    context.scale(ratio, ratio);
+    context.scale(dpr, dpr);
     context.lineCap = "round";
+    context.lineJoin = "round";
 
-    // Fondo inicial oscuro
     context.fillStyle = "#1e1e1e";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
+    context.fillRect(0, 0, width, height);
     contextRef.current = context;
 
-    // EVENTOS DE SOCKET
+    // Sockets
     socket.on('startDrawing', (data) => {
-      const ctx = contextRef.current;
-      ctx.beginPath();
-      ctx.moveTo(data.x, data.y);
+      contextRef.current.beginPath();
+      contextRef.current.moveTo(data.x, data.y);
     });
 
     socket.on('draw', (data) => {
@@ -62,11 +54,7 @@ function App() {
     });
 
     socket.on('clear', () => {
-      const ctx = contextRef.current;
-      const cvs = canvasRef.current;
-      ctx.beginPath();
-      ctx.fillStyle = "#1e1e1e";
-      ctx.fillRect(0, 0, cvs.width, cvs.height);
+      contextRef.current.fillRect(0, 0, canvas.width, canvas.height);
     });
 
     return () => {
@@ -76,165 +64,98 @@ function App() {
     };
   }, []);
 
-  const getCoordinates = (event) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    if (event.touches) {
-      return {
-        offsetX: event.touches[0].clientX - rect.left,
-        offsetY: event.touches[0].clientY - rect.top,
-        clientX: event.touches[0].clientX,
-        clientY: event.touches[0].clientY
-      };
-    }
-    return { 
-      offsetX: event.offsetX, 
-      offsetY: event.offsetY,
-      clientX: event.clientX,
-      clientY: event.clientY
+  // FUNCIÓN CLAVE: Calcula la posición real considerando el SCROLL
+  const getCoordinates = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Soporte para touch y mouse
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    // Restamos la posición del canvas respecto a la pantalla
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+      clientX,
+      clientY
     };
   };
 
   const startDrawing = (e) => {
-    if (showPicker) setShowPicker(false);
+    const { x, y, clientX, clientY } = getCoordinates(e.nativeEvent);
 
-    const { offsetX, offsetY, clientX, clientY } = getCoordinates(e.nativeEvent);
-
-    // MODO MANO: Iniciar desplazamiento
     if (isHandMode) {
       setIsPanning(true);
-      setStartPan({ 
-        x: clientX + window.scrollX, 
-        y: clientY + window.scrollY 
-      });
+      setStartPan({ x: clientX, y: clientY, scrollLeft: window.scrollX, scrollTop: window.scrollY });
       return;
     }
 
-    // MODO DIBUJO/GOMA
-    contextRef.current.strokeStyle = isEraser ? "#1e1e1e" : color;
-    contextRef.current.lineWidth = isEraser ? 30 : 3;
-
-    contextRef.current.beginPath();
-    contextRef.current.moveTo(offsetX, offsetY);
     setIsDrawing(true);
+    contextRef.current.strokeStyle = isEraser ? "#1e1e1e" : color;
+    contextRef.current.lineWidth = isEraser ? 40 : 4;
+    contextRef.current.beginPath();
+    contextRef.current.moveTo(x, y);
 
-    socket.emit('startDrawing', { x: offsetX, y: offsetY });
+    socket.emit('startDrawing', { x, y });
   };
 
   const draw = (e) => {
-    const { offsetX, offsetY, clientX, clientY } = getCoordinates(e.nativeEvent);
+    const { x, y, clientX, clientY } = getCoordinates(e.nativeEvent);
 
-    // Si estamos desplazando la pantalla
     if (isPanning) {
-      window.scrollTo(startPan.x - clientX, startPan.y - clientY);
+      // Movimiento de pantalla inverso para que se sienta natural
+      const dx = clientX - startPan.x;
+      const dy = clientY - startPan.y;
+      window.scrollTo(startPan.scrollLeft - dx, startPan.scrollTop - dy);
       return;
     }
 
     if (!isDrawing) return;
 
-    contextRef.current.lineTo(offsetX, offsetY);
+    contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
 
     socket.emit('draw', {
-      x: offsetX,
-      y: offsetY,
+      x, y,
       color: contextRef.current.strokeStyle,
       lineWidth: contextRef.current.lineWidth
     });
   };
 
   const stopDrawing = () => {
-    if (isPanning) setIsPanning(false);
-    
-    if (isDrawing) {
-      contextRef.current.closePath();
-      setIsDrawing(false);
-    }
-  };
-
-  const handleClear = () => {
-    if (window.confirm("¿Limpiar toda la pizarra para todos?")) {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext("2d");
-      ctx.beginPath();
-      ctx.fillStyle = "#1e1e1e";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      socket.emit('clear');
-    }
+    setIsDrawing(false);
+    setIsPanning(false);
   };
 
   return (
-    <div className={`canvas-container ${isHandMode ? 'hand-active' : ''}`}>
+    <div className="canvas-container">
       <div className="toolbar">
-        {/* Selector de Color */}
-        <div className="color-preview-container">
-          <div
-            style={{
-              backgroundColor: color,
-              width: '30px',
-              height: '30px',
-              borderRadius: '50%',
-              border: '2px solid white',
-              cursor: isHandMode ? 'not-allowed' : 'pointer',
-              opacity: isHandMode ? 0.3 : 1
-            }}
-            onClick={() => !isHandMode && setShowPicker(!showPicker)}
-          />
-
-          {showPicker && (
-            <div style={{ position: 'absolute', bottom: '60px', left: '0px', zIndex: '20' }}>
-              <div
-                style={{ position: 'fixed', top: 0, right: 0, bottom: 0, left: 0 }}
-                onClick={() => setShowPicker(false)}
-              />
-              <div style={{ position: 'relative', zIndex: '30' }}>
-                <SketchPicker color={color} onChange={(c) => setColor(c.hex)} />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Botón Herramienta Mano */}
-        <button
-          className="btn-tool"
-          onClick={toggleHandMode}
-          style={{ 
-            backgroundColor: isHandMode ? '#fcc419' : '#444',
-            color: isHandMode ? '#000' : '#fff'
-          }}
-        >
-          🖐️
+        <button onClick={() => {setIsHandMode(!isHandMode); setIsEraser(false)}} 
+                style={{background: isHandMode ? '#fcc419' : '#444'}}>
+          {isHandMode ? "🖐️" : "✋"}
         </button>
-
-        {/* Botón Lápiz / Goma */}
-        <button
-          className="btn-tool"
-          onClick={() => {
-            setIsHandMode(false);
-            setIsEraser(!isEraser);
-          }}
-          style={{
-            backgroundColor: isHandMode ? '#444' : (isEraser ? '#4dabf7' : '#ff6b6b'),
-            color: 'white',
-            fontWeight: 'bold'
-          }}
-        >
+        <button onClick={() => {setIsEraser(!isEraser); setIsHandMode(false)}}
+                style={{background: isEraser ? '#4dabf7' : '#ff6b6b'}}>
           {isEraser ? "✏️" : "🧽"}
         </button>
-
-        <button className="btn-tool btn-clear" onClick={handleClear}>
-          🗑️
-        </button>
+        <div className="color-preview" onClick={() => setShowPicker(!showPicker)} 
+             style={{backgroundColor: color, width: 30, height: 30, borderRadius: '50%'}} />
+        {showPicker && (
+          <div className="picker-popover">
+             <div className="picker-cover" onClick={() => setShowPicker(false)}/>
+             <SketchPicker color={color} onChange={(c) => setColor(c.hex)} />
+          </div>
+        )}
       </div>
-
       <canvas
+        ref={canvasRef}
         onMouseDown={startDrawing}
         onMouseMove={draw}
         onMouseUp={stopDrawing}
-        onMouseLeave={stopDrawing}
         onTouchStart={startDrawing}
         onTouchMove={draw}
         onTouchEnd={stopDrawing}
-        ref={canvasRef}
       />
     </div>
   );
