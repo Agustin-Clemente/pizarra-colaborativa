@@ -1,10 +1,20 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  /* Permitimos scroll para que la mano funcione */
+  overflow: auto; 
+  background-color: #1e1e1e;
+  overscroll-behavior: none;
+}
+
 .canvas-container {
-  width: 100vw;
-  height: 100vh;
-  display: flex;
+  width: fit-content; 
+  height: fit-content;
+  display: block;
   flex-direction: column;
   background-color: #121212;
   overflow: visible;
+  position: relative;
 }
 
 canvas {
@@ -12,15 +22,27 @@ canvas {
   background-color: #1e1e1e;
   cursor: crosshair;
   touch-action: none; /* Obligatorio para tablets y celus */
+  margin: 0;
+  padding: 0;
+}
+
+.hand-active canvas {
+  cursor: grab;
+}
+
+.panning canvas {
+  cursor: grabbing !important;
 }
 
 .ui-overlay {
-  position: absolute;
+  position: fixed;
   top: 20px;
   left: 20px;
   pointer-events: none; /* Para que no interfiera con el dibujo */
   font-family: sans-serif;
   text-shadow: 1px 1px 2px black;
+  z-index: 5;
+  color: white;
 }
 
 
@@ -36,6 +58,8 @@ canvas {
   border-radius: 20px;
   z-index: 10;
 }
+
+
 
 .color-picker {
   width: 30px;
