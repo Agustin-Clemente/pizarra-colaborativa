@@ -14,32 +14,20 @@ function App() {
   const [isEraser, setIsEraser] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [isHandMode, setIsHandMode] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
-  const [startPan, setStartPan] = useState({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const dpr = window.devicePixelRatio || 1;
-
-    // Pizarra grande: 3 veces el ancho/alto de la pantalla
-    const width = window.innerWidth * 3;
-    const height = window.innerHeight * 3;
-
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-
+    // Definimos un tamaño grande para la pizarra (3 veces la pantalla)
+    canvas.width = window.innerWidth * 3;
+    canvas.height = window.innerHeight * 3;
+    
     const context = canvas.getContext("2d");
-    context.scale(dpr, dpr);
     context.lineCap = "round";
     context.lineJoin = "round";
-
     context.fillStyle = "#1e1e1e";
-    context.fillRect(0, 0, width, height);
+    context.fillRect(0, 0, canvas.width, canvas.height);
     contextRef.current = context;
 
-    // Sockets
     socket.on('startDrawing', (data) => {
       contextRef.current.beginPath();
       contextRef.current.moveTo(data.x, data.y);
@@ -54,99 +42,49 @@ function App() {
     });
 
     socket.on('clear', () => {
-      const ctx = contextRef.current;
-      ctx.fillStyle = "#1e1e1e";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      contextRef.current.fillRect(0, 0, canvas.width, canvas.height);
     });
 
-    return () => {
-      socket.off('startDrawing');
-      socket.off('draw');
-      socket.off('clear');
-    };
+    return () => { socket.off('startDrawing'); socket.off('draw'); socket.off('clear'); };
   }, []);
 
-  const getCoordinates = (e) => {
+  const getCoords = (e) => {
     const rect = canvasRef.current.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-    return {
-      x: clientX - rect.left,
-      y: clientY - rect.top,
-      clientX,
-      clientY
-    };
+    return { x: clientX - rect.left, y: clientY - rect.top };
   };
 
-  const startAction = (e) => {
-    if (showPicker) setShowPicker(false);
-    const { x, y, clientX, clientY } = getCoordinates(e.nativeEvent);
-
-    if (isHandMode) {
-      setIsPanning(true);
-      setStartPan({
-        x: clientX,
-        y: clientY,
-        scrollLeft: window.scrollX,
-        scrollTop: window.scrollY
-      });
-      return;
-    }
-
+  const start = (e) => {
+    if (isHandMode) return; // Permitimos que el navegador maneje el touch para scrollear
     setIsDrawing(true);
-    contextRef.current.strokeStyle = isEraser ? "#1e1e1e" : color;
-    contextRef.current.lineWidth = isEraser ? 40 : 4;
+    const { x, y } = getCoords(e.nativeEvent);
     contextRef.current.beginPath();
     contextRef.current.moveTo(x, y);
+    contextRef.current.strokeStyle = isEraser ? "#1e1e1e" : color;
+    contextRef.current.lineWidth = isEraser ? 40 : 4;
     socket.emit('startDrawing', { x, y });
   };
 
-  const doAction = (e) => {
-    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-
-    if (isPanning) {
-      const dx = clientX - startPan.x;
-      const dy = clientY - startPan.y;
-      window.scrollTo(startPan.scrollLeft - dx, startPan.scrollTop - dy);
-      return;
-    }
-
-    if (!isDrawing) return;
-
+  const move = (e) => {
+    if (!isDrawing || isHandMode) return;
+    const { x, y } = getCoords(e.nativeEvent);
     contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
-
-    const { x, y } = getCoordinates(e.nativeEvent);
-    contextRef.current.lineTo(x, y);
-    contextRef.current.stroke();
-
     socket.emit('draw', { x, y, color: contextRef.current.strokeStyle, lineWidth: contextRef.current.lineWidth });
   };
 
-  const stopAction = () => {
-    setIsDrawing(false);
-    setIsPanning(false);
-  };
-
-  const handleClear = () => {
-    if (window.confirm("¿Borrar todo para todos?")) {
-      const ctx = contextRef.current;
-      ctx.fillStyle = "#1e1e1e";
-      ctx.fillRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-      socket.emit('clear');
-    }
-  };
+  const stop = () => setIsDrawing(false);
 
   return (
-    <div className="app-container">
+    <div className="pizarra-wrapper">
+      {/* TOOLBAR: Fuera del flujo de scroll para que no se mueva */}
       <div className="toolbar">
-        <div className="picker-container">
-          <div
+        <div className="tool-item">
+          <div 
+            onClick={() => {setShowPicker(!showPicker); setIsHandMode(false); setIsEraser(false)}} 
             className="color-circle"
-            style={{ backgroundColor: color }}
-            onClick={() => { setShowPicker(!showPicker); setIsEraser(false); setIsHandMode(false); }}
+            style={{ backgroundColor: isEraser ? 'transparent' : color, border: isEraser ? '1px dashed #777' : '2px solid white' }} 
           />
           {showPicker && (
             <div className="picker-popover">
@@ -156,37 +94,32 @@ function App() {
           )}
         </div>
 
-        <button
-          className={`btn ${isHandMode ? 'active-hand' : ''}`}
-          onClick={toggleHandMode}
-        >
-          {isHandMode ? "🖐️" : "✋"}
+        <button className={`btn-tool ${isHandMode ? 'active-hand' : ''}`} 
+                onClick={() => {setIsHandMode(!isHandMode); setIsEraser(false); setShowPicker(false)}}>
+          🖐️
         </button>
 
-        {/* BOTÓN DINÁMICO: Cambia entre Lápiz y Goma */}
-        <button
-          className={`btn ${isEraser ? 'active-eraser' : 'active-pencil'}`}
-          onClick={() => {
-            setIsEraser(!isEraser); // Alterna entre lápiz y goma
-            setIsHandMode(false);   // Desactiva la mano al elegir herramienta
-            setShowPicker(false);
-          }}
-        >
-          {isEraser ? "✏️ Lápiz" : "🧽 Goma"}
+        <button className={`btn-tool ${isEraser ? 'active-eraser' : ''}`} 
+                onClick={() => {setIsEraser(!isEraser); setIsHandMode(false); setShowPicker(false)}}>
+          {isEraser ? "✏️" : "🧽"}
         </button>
-        <button className="btn btn-clear" onClick={handleClear}>🗑️</button>
+
+        <button className="btn-tool btn-clear" onClick={() => window.confirm("¿Borrar todo?") && socket.emit('clear')}>🗑️</button>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        onMouseDown={startAction}
-        onMouseMove={doAction}
-        onMouseUp={stopAction}
-        onMouseLeave={stopAction}
-        onTouchStart={startAction}
-        onTouchMove={doAction}
-        onTouchEnd={stopAction}
-      />
+      {/* CONTENEDOR DE SCROLL: Este es el que tiene el overflow auto */}
+      <div className="scroll-container">
+        <canvas
+          ref={canvasRef}
+          onMouseDown={start}
+          onMouseMove={move}
+          onMouseUp={stop}
+          onTouchStart={start}
+          onTouchMove={move}
+          onTouchEnd={stop}
+          style={{ touchAction: isHandMode ? 'auto' : 'none' }} 
+        />
+      </div>
     </div>
   );
 }

@@ -1,71 +1,68 @@
-.app-container {
-  width: 100%;
-  height: 100%;
+/* App.css */
+
+.pizarra-wrapper {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  overflow: hidden; /* El wrapper NO scrollea, scrollea el hijo */
 }
 
-/* LA BARRA: Siempre fija abajo en móviles, arriba en PC */
+.scroll-container {
+  width: 100%;
+  height: 100%;
+  overflow: auto; /* ESTE es el que permite desplazar la pizarra */
+  -webkit-overflow-scrolling: touch;
+  background-color: #1e1e1e;
+}
+
+canvas {
+  display: block;
+  background-color: #1e1e1e;
+}
+
 .toolbar {
   position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
+  z-index: 1000; /* Siempre arriba */
   display: flex;
-  gap: 15px;
+  gap: 12px;
   background: #333;
-  padding: 12px 20px;
-  border-radius: 50px;
-  z-index: 9999; /* Por encima de todo */
-  box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+  padding: 10px 15px;
+  border-radius: 40px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
 
-.btn {
-  background: #444;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  width: 45px;
-  height: 45px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: 0.2s;
+/* Responsividad para móviles */
+@media (max-width: 600px) {
+  .toolbar {
+    width: 90%;
+    justify-content: space-around;
+  }
 }
 
-.btn.active { background: #fcc419; }
-.btn.active-eraser { background: #4dabf7; }
-.btn-clear { background: #ff6b6b; color: white; }
-
-.color-circle {
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  border: 2px solid white;
-  cursor: pointer;
-}
-
-/* PICKER: Ahora se abre hacia arriba para que no se corte */
+/* Picker que sube */
 .picker-popover {
   position: absolute;
   bottom: 70px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 10000;
+  z-index: 1001;
 }
 
-.picker-cover {
-  position: fixed;
-  top: 0; right: 0; bottom: 0; left: 0;
+.btn-tool {
+  background: #444;
+  border: none;
+  width: 45px; height: 45px;
+  border-radius: 50%;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
-canvas {
-  display: block;
-  touch-action: none; 
-  background-color: #1e1e1e;
-}
-
-@media (min-width: 768px) {
-  .toolbar { top: 20px; bottom: auto; }
-  .picker-popover { bottom: auto; top: 60px; }
-}
+.active-hand { background: #fcc419; }
+.active-eraser { background: #4dabf7; }
+.btn-clear { background: #ff6b6b; }
