@@ -9,5 +9,9 @@ html, body, #root {
   height: 100%;
   background-color: #121212;
   color: #ffffff;
-  overflow: hidden; /* Evita el rebote en móviles */
+  overflow: auto;
+}
+
+body {
+  overscroll-behavior: none;
 }

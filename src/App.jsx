@@ -28,15 +28,16 @@ function App() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const ratio = 2;
     
     // Hacemos el lienzo más grande para tener espacio de desplazamiento
     canvas.width = window.innerWidth * 4;
     canvas.height = window.innerHeight * 4;
-    canvas.style.width = `${window.innerWidth * 2}px`;
-    canvas.style.height = `${window.innerHeight * 2}px`;
+    canvas.style.width = `${window.innerWidth * 3}px`;
+    canvas.style.height = `${window.innerHeight * 3}px`;
 
     const context = canvas.getContext("2d");
-    context.scale(2, 2);
+    context.scale(ratio, ratio);
     context.lineCap = "round";
 
     // Fondo inicial oscuro
