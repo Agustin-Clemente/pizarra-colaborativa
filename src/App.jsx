@@ -45,7 +45,11 @@ function App() {
       contextRef.current.fillRect(0, 0, canvas.width, canvas.height);
     });
 
-    return () => { socket.off('startDrawing'); socket.off('draw'); socket.off('clear'); };
+    return () => { 
+      socket.off('startDrawing'); 
+      socket.off('draw'); 
+      socket.off('clear'); 
+    };
   }, []);
 
   const getCoords = (e) => {
@@ -56,7 +60,7 @@ function App() {
   };
 
   const start = (e) => {
-    if (isHandMode) return; // Permitimos que el navegador maneje el touch para scrollear
+    if (isHandMode) return; 
     setIsDrawing(true);
     const { x, y } = getCoords(e.nativeEvent);
     contextRef.current.beginPath();
@@ -78,18 +82,33 @@ function App() {
 
   return (
     <div className="pizarra-wrapper">
-      {/* TOOLBAR: Fuera del flujo de scroll para que no se mueva */}
       <div className="toolbar">
-        <div className="tool-item">
+        {/* Selector de Color CORREGIDO */}
+        <div className="tool-item picker-container">
           <div 
-            onClick={() => {setShowPicker(!showPicker); setIsHandMode(false); setIsEraser(false)}} 
+            onClick={() => {
+              setShowPicker(!showPicker); 
+              setIsHandMode(false); 
+              setIsEraser(false);
+            }} 
             className="color-circle"
-            style={{ backgroundColor: isEraser ? 'transparent' : color, border: isEraser ? '1px dashed #777' : '2px solid white' }} 
+            style={{ 
+              backgroundColor: isEraser ? 'transparent' : color, 
+              border: isEraser ? '1px dashed #777' : '2px solid white' 
+            }} 
           />
           {showPicker && (
             <div className="picker-popover">
+              {/* Capa invisible para cerrar al tocar fuera */}
               <div className="picker-cover" onClick={() => setShowPicker(false)} />
-              <SketchPicker color={color} onChange={(c) => setColor(c.hex)} />
+              {/* Cuadro del selector */}
+              <div className="picker-content">
+                <SketchPicker 
+                  color={color} 
+                  onChange={(c) => setColor(c.hex)} 
+                  disableAlpha={true} // Opcional: simplifica el picker
+                />
+              </div>
             </div>
           )}
         </div>
@@ -107,7 +126,6 @@ function App() {
         <button className="btn-tool btn-clear" onClick={() => window.confirm("¿Borrar todo?") && socket.emit('clear')}>🗑️</button>
       </div>
 
-      {/* CONTENEDOR DE SCROLL: Este es el que tiene el overflow auto */}
       <div className="scroll-container">
         <canvas
           ref={canvasRef}
