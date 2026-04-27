@@ -60,6 +60,8 @@ function App() {
   };
 
   const start = (e) => {
+    if (showPicker) setShowPicker(false);
+    
     if (isHandMode) return; 
     setIsDrawing(true);
     const { x, y } = getCoords(e.nativeEvent);
