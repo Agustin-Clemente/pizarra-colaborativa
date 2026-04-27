@@ -20,7 +20,7 @@ function App() {
   useEffect(() => {
     const canvas = canvasRef.current;
     const dpr = window.devicePixelRatio || 1;
-    
+
     // Pizarra grande: 3 veces el ancho/alto de la pantalla
     const width = window.innerWidth * 3;
     const height = window.innerHeight * 3;
@@ -85,11 +85,11 @@ function App() {
 
     if (isHandMode) {
       setIsPanning(true);
-      setStartPan({ 
-        x: clientX, 
-        y: clientY, 
-        scrollLeft: window.scrollX, 
-        scrollTop: window.scrollY 
+      setStartPan({
+        x: clientX,
+        y: clientY,
+        scrollLeft: window.scrollX,
+        scrollTop: window.scrollY
       });
       return;
     }
@@ -103,7 +103,8 @@ function App() {
   };
 
   const doAction = (e) => {
-    const { x, y, clientX, clientY } = getCoordinates(e.nativeEvent);
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
     if (isPanning) {
       const dx = clientX - startPan.x;
@@ -113,8 +114,14 @@ function App() {
     }
 
     if (!isDrawing) return;
+
     contextRef.current.lineTo(x, y);
     contextRef.current.stroke();
+
+    const { x, y } = getCoordinates(e.nativeEvent);
+    contextRef.current.lineTo(x, y);
+    contextRef.current.stroke();
+
     socket.emit('draw', { x, y, color: contextRef.current.strokeStyle, lineWidth: contextRef.current.lineWidth });
   };
 
@@ -136,9 +143,9 @@ function App() {
     <div className="app-container">
       <div className="toolbar">
         <div className="picker-container">
-          <div 
-            className="color-circle" 
-            style={{ backgroundColor: color }} 
+          <div
+            className="color-circle"
+            style={{ backgroundColor: color }}
             onClick={() => { setShowPicker(!showPicker); setIsEraser(false); setIsHandMode(false); }}
           />
           {showPicker && (
@@ -149,8 +156,24 @@ function App() {
           )}
         </div>
 
-        <button className={`btn ${isHandMode ? 'active' : ''}`} onClick={() => { setIsHandMode(!isHandMode); setIsEraser(false); }}>🖐️</button>
-        <button className={`btn ${isEraser ? 'active-eraser' : ''}`} onClick={() => { setIsEraser(!isEraser); setIsHandMode(false); }}>🧽</button>
+        <button
+          className={`btn ${isHandMode ? 'active-hand' : ''}`}
+          onClick={toggleHandMode}
+        >
+          {isHandMode ? "🖐️" : "✋"}
+        </button>
+
+        {/* BOTÓN DINÁMICO: Cambia entre Lápiz y Goma */}
+        <button
+          className={`btn ${isEraser ? 'active-eraser' : 'active-pencil'}`}
+          onClick={() => {
+            setIsEraser(!isEraser); // Alterna entre lápiz y goma
+            setIsHandMode(false);   // Desactiva la mano al elegir herramienta
+            setShowPicker(false);
+          }}
+        >
+          {isEraser ? "✏️ Lápiz" : "🧽 Goma"}
+        </button>
         <button className="btn btn-clear" onClick={handleClear}>🗑️</button>
       </div>
 
